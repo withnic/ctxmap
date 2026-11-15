@@ -37,15 +37,24 @@ func Slice(args []string) int {
 		return fail(err)
 	}
 
-	all := candidates(s.files)
+	return writeOut(func(w io.Writer) int {
+		return writeSlice(w, candidates(s.files), queries, sf.includeTests)
+	})
+}
+
+// writeSlice prints the definition of every symbol that matches a query.
+// A type is followed by the list of its methods in the whole package.
+// Queries without a match are noted at the end of stdout (where an agent
+// reads them), with suggestions; the result is exitFail only when nothing
+// matched at all.
+func writeSlice(w io.Writer, all []hit, queries []string, includeTests bool) int {
 	var hits []hit
+	var notes []string
 	seen := map[string]bool{}
-	missing := 0
 	for _, q := range queries {
 		found := findSymbol(all, q)
 		if len(found) == 0 {
-			reportMissing(all, q, s.label(), sf.includeTests)
-			missing++
+			notes = append(notes, notFoundNote(all, q))
 			continue
 		}
 		for _, h := range found {
@@ -56,34 +65,80 @@ func Slice(args []string) int {
 			}
 		}
 	}
-	code := writeOut(func(w io.Writer) int {
-		for i, h := range hits {
-			if i > 0 {
-				fmt.Fprintln(w)
-			}
-			fmt.Fprintf(w, "## %s:%d-%d (%s %s)\n```go\n%s\n```\n",
-				h.f.disp, h.sym.Start, h.sym.End, h.sym.Kind, h.name,
-				lines(h.f.src, h.sym.Start, h.sym.End))
-		}
-		return exitOK
-	})
-	if code == exitOK && missing > 0 {
-		return exitFail // found ones are printed; any miss is still a failure
+	if len(notes) > 0 && !includeTests {
+		notes = append(notes, "> hint: test files are not searched; add --include-tests to include them")
 	}
-	return code
+
+	methods := methodsByType(all)
+	for i, h := range hits {
+		if i > 0 {
+			fmt.Fprintln(w)
+		}
+		fmt.Fprintf(w, "## %s:%d-%d (%s %s)\n```go\n%s\n```\n",
+			h.f.disp, h.sym.Start, h.sym.End, h.sym.Kind, h.name,
+			lines(h.f.src, h.sym.Start, h.sym.End))
+		if h.sym.Kind == "type" {
+			writeMethods(w, h.name, methods[typeKey(h.f, h.name)])
+		}
+	}
+	if len(notes) > 0 {
+		if len(hits) > 0 {
+			fmt.Fprintln(w)
+		}
+		fmt.Fprintln(w, strings.Join(notes, "\n"))
+	}
+	if len(hits) == 0 {
+		return exitFail
+	}
+	return exitOK
+}
+
+// typeKey identifies a type within its package (directory).
+func typeKey(f *source, typeName string) string {
+	return f.dir() + "\x00" + typeName
+}
+
+// methodsByType groups the methods of every scanned file by receiver type,
+// so `slice <Type>` can list methods declared in any file of the package.
+func methodsByType(all []hit) map[string][]hit {
+	out := map[string][]hit{}
+	for _, h := range all {
+		if h.sym.Kind != "method" {
+			continue
+		}
+		recv := h.name[:strings.IndexByte(h.name, '.')]
+		k := typeKey(h.f, recv)
+		out[k] = append(out[k], h)
+	}
+	return out
+}
+
+// writeMethods lists method signatures and locations (no bodies).
+func writeMethods(w io.Writer, typeName string, methods []hit) {
+	if len(methods) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "methods on %s (%d):\n", typeName, len(methods))
+	for _, m := range methods {
+		sig := strings.Join(strings.Fields(m.sym.Signature), " ") // one line
+		fmt.Fprintf(w, "- %s:%d-%d %s\n", m.f.disp, m.sym.Start, m.sym.End, sig)
+	}
 }
 
 // splitSliceArgs separates symbols from the optional trailing path. Symbols
 // may be comma-separated. Without --path, the last of two or more arguments
-// is the path when it exists on disk (keeps `slice Name dir` working).
+// is the path only when it clearly is one (see looksLikePath) and exists, so
+// a symbol that shares its name with a directory (`slice Config config`) is
+// still searched as a symbol.
 func splitSliceArgs(pos []string, pathFlag string) (queries []string, root string) {
 	root = "."
 	switch {
 	case pathFlag != "":
 		root = pathFlag
 	case len(pos) >= 2:
-		if _, err := os.Stat(pos[len(pos)-1]); err == nil {
-			root, pos = pos[len(pos)-1], pos[:len(pos)-1]
+		last := pos[len(pos)-1]
+		if _, err := os.Stat(last); err == nil && looksLikePath(last) {
+			root, pos = last, pos[:len(pos)-1]
 		}
 	}
 	for _, p := range pos {
@@ -125,21 +180,28 @@ func findSymbol(all []hit, query string) []hit {
 	return match(strings.EqualFold)
 }
 
-func reportMissing(all []hit, query, root string, includeTests bool) {
-	fmt.Fprintf(os.Stderr, "ctxmap: symbol %q not found under %s\n", query, root)
+// looksLikePath reports whether a positional argument is clearly a path
+// rather than a symbol: ".", "..", anything with a path separator, or a
+// .go file name.
+func looksLikePath(s string) bool {
+	return s == "." || s == ".." || strings.ContainsAny(s, `/\`) || strings.HasSuffix(s, ".go")
+}
+
+// notFoundNote is the line printed for a symbol that was not found, with up
+// to five similar names as suggestions.
+func notFoundNote(all []hit, query string) string {
 	var similar []string
 	q := strings.ToLower(query)
 	for _, h := range all {
-		if len(similar) < 10 && strings.Contains(strings.ToLower(h.name), q) {
+		if len(similar) < 5 && strings.Contains(strings.ToLower(h.name), q) {
 			similar = append(similar, h.name+" ("+h.f.disp+")")
 		}
 	}
+	note := fmt.Sprintf("> [not found] %q", query)
 	if len(similar) > 0 {
-		fmt.Fprintf(os.Stderr, "similar: %s\n", strings.Join(similar, ", "))
+		note += " (did you mean: " + strings.Join(similar, ", ") + "?)"
 	}
-	if !includeTests {
-		fmt.Fprintln(os.Stderr, "hint: add --include-tests to search test files")
-	}
+	return note
 }
 
 // lines returns the 1-based inclusive line range [from, to] of src.

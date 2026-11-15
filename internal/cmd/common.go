@@ -25,6 +25,9 @@ type source struct {
 	disp string // path shown to the user
 }
 
+// dir is the file's package directory (absolute).
+func (f *source) dir() string { return filepath.Dir(f.abs) }
+
 // scan is the result of walking and parsing one root.
 type scan struct {
 	keepSource bool // retain file contents (needed by slice)

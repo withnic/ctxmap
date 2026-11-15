@@ -132,8 +132,14 @@ func Summary(doc string) string {
 ````
 
 - Symbols are given as `Name` or `Recv.Method`.
-- Without an exact match, the search falls back to a case-insensitive match. Missing symbols are reported on stderr with similar candidates; the ones that were found are still printed, and the exit code is 1 if any symbol was missing.
-- The last argument is the search path when it exists on disk (`ctxmap slice Map cmd`). If a symbol could be mistaken for a path, pass the path with `--path` instead.
+- Slicing a type also lists its methods from every file of the package (signature and location only):
+  ```text
+  methods on depGraph (10):
+  - internal/cmd/deps.go:106-125 func (g *depGraph) writeAll(w io.Writer, files []*source, changedOnly bool, maxLines int)
+  ...
+  ```
+- Without an exact match, the search falls back to a case-insensitive match. Symbols that are still not found are listed at the end of stdout with suggestions, e.g. `> [not found] "ParseGoo" (did you mean: ParseGo (internal/parser/go_parser.go)?)`. The exit code is 0 when at least one symbol was found and 1 when none was.
+- The last argument is the search path only when it clearly is a path and exists: `.`, `..`, anything containing `/` or `\`, or a `.go` file (`ctxmap slice Map ./internal/cmd`). A single word such as `cmd` is always a symbol; use `--path cmd` for a directory with a one-word name.
 
 ### Common behavior
 

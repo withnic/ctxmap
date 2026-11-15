@@ -314,3 +314,66 @@ func TestLines(t *testing.T) {
 		t.Errorf("out of range: %q", got)
 	}
 }
+
+func TestLooksLikePath(t *testing.T) {
+	for arg, want := range map[string]bool{
+		".": true, "..": true, "./internal": true, "internal/cmd": true, `internal\cmd`: true,
+		"map.go": true, "config": false, "cmd": false, "DB.Get": false, "Config": false,
+	} {
+		if looksLikePath(arg) != want {
+			t.Errorf("looksLikePath(%q) = %v, want %v", arg, !want, want)
+		}
+	}
+}
+
+var sliceFixture = map[string]string{
+	"go.mod":      "module example.com/s\n\ngo 1.22\n",
+	"a/types.go":  "package a\n\n// Server serves.\ntype Server struct{ Addr string }\n",
+	"a/routes.go": "package a\n\n// Start starts.\nfunc (s *Server) Start() error { return nil }\n\nfunc (s Server) addr() string { return s.Addr }\n",
+	"b/other.go":  "package b\n\ntype Server struct{}\n\nfunc (s *Server) Stop() {}\n",
+	"a/parse.go":  "package a\n\nfunc ParseGo() {}\n",
+}
+
+func TestWriteSlice(t *testing.T) {
+	s, err := collect(writeTree(t, sliceFixture), &scanFlags{keepSource: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := candidates(s.files)
+	var b strings.Builder
+
+	// a type lists its methods from other files of the same package only
+	if code := writeSlice(&b, all, []string{"Server"}, false); code != exitOK {
+		t.Errorf("exit = %d", code)
+	}
+	out := b.String()
+	want := "methods on Server (2):\n- a/routes.go:3-4 func (s *Server) Start() error\n- a/routes.go:6-6 func (s Server) addr() string\n"
+	if !strings.Contains(out, want) {
+		t.Errorf("method list missing:\n%s", out)
+	}
+	if !strings.Contains(out, "type Server struct{ Addr string }") ||
+		strings.Count(out, "methods on Server (1):\n- b/other.go:5-5 func (s *Server) Stop()") != 1 {
+		t.Errorf("each Server must list only its own package's methods:\n%s", out)
+	}
+
+	// partial match: found ones are printed, the miss is noted on stdout, exit 0
+	b.Reset()
+	if code := writeSlice(&b, all, []string{"ParseGo", "ParseGoo"}, false); code != exitOK {
+		t.Errorf("partial match exit = %d, want %d", code, exitOK)
+	}
+	out = b.String()
+	if !strings.Contains(out, "(func ParseGo)") ||
+		!strings.Contains(out, `> [not found] "ParseGoo"`) ||
+		!strings.Contains(out, "--include-tests") {
+		t.Errorf("partial match output:\n%s", out)
+	}
+
+	// total miss: exit 1, still explained on stdout
+	b.Reset()
+	if code := writeSlice(&b, all, []string{"Nope1", "Nope2"}, true); code != exitFail {
+		t.Errorf("total miss exit = %d, want %d", code, exitFail)
+	}
+	if out := b.String(); strings.Count(out, "> [not found]") != 2 || strings.Contains(out, "--include-tests") {
+		t.Errorf("total miss output:\n%s", out)
+	}
+}

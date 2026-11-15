@@ -22,6 +22,17 @@ ctxmap is now a Go-only tool.
   output) are no longer excluded, since `build` or `dist` can be ordinary Go
   packages (e.g. `cmd/dist` in the Go source tree).
 - `deps` resolves imports against the nearest `go.mod` only.
+- `slice` exits with 0 when at least one symbol was found (1 only when none
+  was); symbols that were not found are listed at the end of stdout as
+  `> [not found] "Name" (did you mean: ...?)` instead of on stderr.
+- `slice` treats its last argument as the search path only when it clearly is
+  one (`.`, `..`, contains `/` or `\`, or ends in `.go`) and exists, so a symbol
+  named like a directory (`slice Config config`) is still searched; use `--path`
+  for a one-word directory name.
+
+### Added
+- `slice <Type>` lists the type's methods from every file of the package
+  (signature and location) after the definition.
 
 ## [0.1.0] - 2026-11-16
 

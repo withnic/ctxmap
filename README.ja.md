@@ -132,8 +132,14 @@ func Summary(doc string) string {
 ````
 
 - シンボルは `Name` または `Recv.Method` の形式で指定します。
-- 完全一致がなければ、大文字小文字を区別せずに検索します。見つからなかったシンボルは、類似候補とあわせて stderr に出します。見つかった分は出力したうえで、1つでも見つからなければ終了コード1を返します。
-- 最後の引数が実在するパスなら、それを検索対象のパスとして扱います（`ctxmap slice Map cmd`）。シンボル名がパスと紛らわしい場合は、`--path` でパスを指定してください。
+- 型を指定すると、パッケージ内のすべてのファイルから、その型のメソッドの一覧（シグネチャと位置のみ）も出します。
+  ```text
+  methods on depGraph (10):
+  - internal/cmd/deps.go:106-125 func (g *depGraph) writeAll(w io.Writer, files []*source, changedOnly bool, maxLines int)
+  ...
+  ```
+- 完全一致がなければ、大文字小文字を区別せずに検索します。それでも見つからなかったシンボルは、標準出力の末尾に、類似の候補とあわせて出します（例: `> [not found] "ParseGoo" (did you mean: ParseGo (internal/parser/go_parser.go)?)`）。1つでも見つかれば終了コードは0、1つも見つからなければ1です。
+- 最後の引数を検索対象のパスとして扱うのは、明らかにパスで、かつ実在する場合だけです（`.`、`..`、`/` や `\` を含むもの、`.go` ファイル。例: `ctxmap slice Map ./internal/cmd`）。`cmd` のような単語は、常にシンボル名として扱います。1語の名前のディレクトリで絞り込みたいときは `--path cmd` を使ってください。
 
 ### 共通事項
 
