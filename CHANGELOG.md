@@ -37,6 +37,8 @@ ctxmap is now a Go-only tool.
   `## dirent_wasip1.go [os] (go:build wasip1)`, so platform-specific variants of
   the same code can be told apart.
 - Files over 10 MB (almost always generated code) are skipped with a warning.
+- Skill and CLAUDE.md template: when not to use ctxmap (a known, small file is
+  read directly), how `slice` reports misses and lists methods.
 
 ## [0.1.0] - 2026-11-16
 
