@@ -6,6 +6,8 @@ and this project follows [Semantic Versioning](https://semver.org/) (see "Versio
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-16
+
 ctxmap is now a Go-only tool.
 
 ### Removed
@@ -78,5 +80,6 @@ First public release.
 ### Security
 - `--base` values that start with `-` are rejected so they cannot reach `git` as options.
 
-[Unreleased]: https://github.com/withnic/ctxmap/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/withnic/ctxmap/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/withnic/ctxmap/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/withnic/ctxmap/releases/tag/v0.1.0

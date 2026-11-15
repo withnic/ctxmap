@@ -285,7 +285,7 @@ ctxmap は [セマンティック バージョニング](https://semver.org/lang
 - **v1.0.0 より前**は、マイナーリリース（`v0.x.0`）でフラグや出力形式が変わることがあります。変更内容は [CHANGELOG.md](CHANGELOG.md) に記載します。パッチリリース（`v0.x.y`）は不具合の修正だけです。
 - **v1.0.0 以降**は、互換性を壊す変更はメジャーバージョンを上げて行います。
 
-再現性が必要な場合は、`go install github.com/withnic/ctxmap@v0.1.0` のようにバージョンを固定してください。
+再現性が必要な場合は、`go install github.com/withnic/ctxmap@v0.2.0` のようにバージョンを固定してください。
 
 ## ライセンス
 

@@ -285,7 +285,7 @@ ctxmap follows [Semantic Versioning](https://semver.org/). Its compatibility sur
 - **Before v1.0.0**, a minor release (`v0.x.0`) may change flags or the output format; such changes are listed in [CHANGELOG.md](CHANGELOG.md). Patch releases (`v0.x.y`) only fix bugs.
 - **From v1.0.0**, breaking changes require a new major version.
 
-Pin a version when reproducibility matters, e.g. `go install github.com/withnic/ctxmap@v0.1.0`.
+Pin a version when reproducibility matters, e.g. `go install github.com/withnic/ctxmap@v0.2.0`.
 
 ## License
 
