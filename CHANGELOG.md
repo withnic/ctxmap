@@ -33,6 +33,10 @@ ctxmap is now a Go-only tool.
 ### Added
 - `slice <Type>` lists the type's methods from every file of the package
   (signature and location) after the definition.
+- `map` file headings show the file's `//go:build` constraint, e.g.
+  `## dirent_wasip1.go [os] (go:build wasip1)`, so platform-specific variants of
+  the same code can be told apart.
+- Files over 10 MB (almost always generated code) are skipped with a warning.
 
 ## [0.1.0] - 2026-11-16
 

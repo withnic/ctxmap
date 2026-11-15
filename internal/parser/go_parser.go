@@ -3,6 +3,7 @@ package parser
 import (
 	"bytes"
 	"go/ast"
+	"go/build/constraint"
 	goparser "go/parser"
 	"go/printer"
 	"go/token"
@@ -20,7 +21,7 @@ func ParseGo(path string, src []byte) (*FileInfo, error) {
 	}
 	// f.Doc is the comment directly above the package clause, so a license
 	// header separated by a blank line is not picked up.
-	fi := &FileInfo{Path: path, Package: f.Name.Name, FileDoc: strings.TrimSpace(f.Doc.Text())}
+	fi := &FileInfo{Path: path, Package: f.Name.Name, FileDoc: strings.TrimSpace(f.Doc.Text()), Build: buildConstraint(f)}
 	for _, imp := range f.Imports {
 		if p, err := strconv.Unquote(imp.Path.Value); err == nil {
 			fi.Imports = append(fi.Imports, p)
@@ -85,6 +86,25 @@ func ParseGo(path string, src []byte) (*FileInfo, error) {
 		}
 	}
 	return fi, nil
+}
+
+// buildConstraint returns the //go:build expression above the package
+// clause in canonical form, or "" when there is none (or it is malformed).
+func buildConstraint(f *ast.File) string {
+	for _, g := range f.Comments {
+		if g.Pos() >= f.Package {
+			break
+		}
+		for _, c := range g.List {
+			if !constraint.IsGoBuild(c.Text) {
+				continue
+			}
+			if expr, err := constraint.Parse(c.Text); err == nil {
+				return expr.String()
+			}
+		}
+	}
+	return ""
 }
 
 func startPos(doc *ast.CommentGroup, p token.Pos) token.Pos {

@@ -377,3 +377,22 @@ func TestWriteSlice(t *testing.T) {
 		t.Errorf("total miss output:\n%s", out)
 	}
 }
+
+func TestSkipHugeFiles(t *testing.T) {
+	root := writeTree(t, map[string]string{
+		"go.mod":   "module example.com/h\n\ngo 1.22\n",
+		"small.go": "package h\n\nfunc Small() {}\n",
+	})
+	big := "package h\n\n// " + strings.Repeat("x", maxFileBytes) + "\nfunc Big() {}\n"
+	if err := os.WriteFile(filepath.Join(root, "big.go"), []byte(big), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := mustCollect(t, root)
+	if len(s.files) != 1 || s.files[0].disp != "small.go" {
+		var names []string
+		for _, f := range s.files {
+			names = append(names, f.disp)
+		}
+		t.Errorf("files over maxFileBytes must be skipped, got %v", names)
+	}
+}

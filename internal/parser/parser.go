@@ -31,6 +31,9 @@ type FileInfo struct {
 	// header separated by a blank line is not part of it). Empty when there
 	// is none.
 	FileDoc string
+	// Build is the file's //go:build constraint in canonical form (e.g.
+	// "linux && amd64"), empty when the file has none.
+	Build string
 }
 
 // ErrUnsupported is returned by ParseFile for unknown file extensions.

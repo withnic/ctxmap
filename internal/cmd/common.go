@@ -28,6 +28,11 @@ type source struct {
 // dir is the file's package directory (absolute).
 func (f *source) dir() string { return filepath.Dir(f.abs) }
 
+// maxFileBytes skips files that are too big to be hand-written source:
+// they are almost always generated, would cost a lot of memory to keep for
+// slice, and would flood map's output.
+const maxFileBytes = 10 << 20
+
 // scan is the result of walking and parsing one root.
 type scan struct {
 	keepSource bool // retain file contents (needed by slice)
@@ -132,6 +137,11 @@ func collect(root string, sf *scanFlags) (*scan, error) {
 
 func (s *scan) parse(p string) *source {
 	disp := s.rel(p)
+	if st, err := os.Stat(p); err == nil && st.Size() > maxFileBytes {
+		warn(disp, fmt.Errorf("skipped: %d MB is over the %d MB limit (usually generated code)",
+			st.Size()>>20, maxFileBytes>>20))
+		return nil
+	}
 	src, err := os.ReadFile(p)
 	if err != nil {
 		warn(disp, err)

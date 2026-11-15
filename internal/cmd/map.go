@@ -109,9 +109,19 @@ func writeMap(w io.Writer, label string, files []*source, o mapOpts, maxLines in
 		if body == "" {
 			continue
 		}
-		budget.write(w, "\n## "+f.disp+" ["+f.info.Package+"]\n"+body)
+		budget.write(w, "\n"+fileHeading(f)+"\n"+body)
 	}
 	budget.truncated(w, "files", "narrow with 'ctxmap map --summary' or a subdirectory path")
+}
+
+// fileHeading is "## path [pkg]", plus the file's build constraint when it
+// has one, so platform-specific variants of the same code can be told apart.
+func fileHeading(f *source) string {
+	h := "## " + f.disp + " [" + f.info.Package + "]"
+	if f.info.Build != "" {
+		h += " (go:build " + f.info.Build + ")"
+	}
+	return h
 }
 
 // visible reports whether map shows s: every func/method/type unless

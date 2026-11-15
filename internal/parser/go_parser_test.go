@@ -89,3 +89,21 @@ func TestIntroCap(t *testing.T) {
 		t.Errorf("Intro should keep at most %d lines, got %q", maxIntroLines, got)
 	}
 }
+
+func TestBuildConstraint(t *testing.T) {
+	cases := map[string]string{
+		"//go:build linux && (amd64 || arm64)\n\npackage p\n":  "linux && (amd64 || arm64)",
+		"// Copyright x\n\n//go:build !windows\n\npackage p\n": "!windows",
+		"// Package p is plain.\npackage p\n":                  "",
+		"package p\n\n//go:build linux\nfunc F() {}\n":         "", // after the package clause: not a constraint
+	}
+	for src, want := range cases {
+		fi, err := ParseGo("x.go", []byte(src))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fi.Build != want {
+			t.Errorf("Build = %q, want %q for:\n%s", fi.Build, want, src)
+		}
+	}
+}

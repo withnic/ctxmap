@@ -67,3 +67,24 @@ func TestSummaryDirDoc(t *testing.T) {
 		t.Errorf("budget must keep a directory with its description:\n%s", out)
 	}
 }
+
+func TestFileHeadingBuild(t *testing.T) {
+	s := mustCollect(t, writeTree(t, map[string]string{
+		"go.mod":         "module example.com/b\n\ngo 1.22\n",
+		"p/open_unix.go": "//go:build unix\n\npackage p\n\nfunc open() {}\n",
+		"p/open_win.go":  "//go:build windows\n\npackage p\n\nfunc open() {}\n",
+		"p/common.go":    "package p\n\nfunc Common() {}\n",
+	}))
+	var b strings.Builder
+	writeMap(&b, "x", s.files, mapOpts{}, 0)
+	out := b.String()
+	for _, want := range []string{
+		"## p/open_unix.go [p] (go:build unix)\n",
+		"## p/open_win.go [p] (go:build windows)\n",
+		"## p/common.go [p]\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("map missing %q:\n%s", want, out)
+		}
+	}
+}

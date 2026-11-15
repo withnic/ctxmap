@@ -145,7 +145,7 @@ func Summary(doc string) string {
 
 - Flags may come before or after positional arguments (`ctxmap map src --exported`).
 - Paths under the current directory are printed relative to it, so they can be passed straight to a Read tool.
-- Files that fail to parse are reported on stderr and skipped; processing continues.
+- Files that fail to parse are reported on stderr and skipped; processing continues. Files over 10 MB (almost always generated code) are skipped the same way.
 - **Output limit**: `map`, `map --summary` and the `deps` listing stop after about 500 lines by default so a large repository cannot flood an agent's context. Output is cut only between whole files (directories for `--summary`), the header still shows the full counts, and the last line says what was left out and how to narrow the request:
 
   ```text
@@ -265,7 +265,7 @@ Design details (in Japanese): [doc/01_system_overview.md](doc/01_system_overview
 
 ## Known limitations
 
-- Go only. Build constraints (`//go:build`) are not evaluated: files for every platform are listed.
+- Go only. Build constraints are not evaluated: files for every platform are listed, and each file heading shows its `//go:build` constraint, e.g. `## os/dirent_wasip1.go [os] (go:build wasip1)`.
 - `--changed` needs `git` on `PATH` and a repository with at least one commit.
 
 ## Other languages
