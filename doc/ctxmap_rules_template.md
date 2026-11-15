@@ -21,6 +21,8 @@
 |---|---|
 | ディレクトリごとの概要 | `ctxmap map --summary` |
 | 出力の上限を変える / なくす | `--max-lines N` / `--max-lines 0`（`map` と `deps`、既定は500行） |
+| 行番号を出さない / .gitignore を無視する | `--no-lines` / `--no-gitignore` |
+| シンボル名がパスと紛らわしいとき | `ctxmap slice <Symbol> --path <dir>` |
 | 骨格（シグネチャ・型・Doc要約・行番号） | `ctxmap map [path]` |
 | 公開APIだけ（Go） | `ctxmap map [path] --exported` |
 | Docコメント全文 / なし | `--full-doc` / `--no-doc` |
