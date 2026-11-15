@@ -5,14 +5,14 @@ AIがコードベースを探索する際、ファイル全体を何度も Read 
 
 - モジュール: `github.com/withnic/ctxmap`（公開リポジトリ: https://github.com/withnic/ctxmap ）
 - サブコマンド: `map` / `deps` / `slice` / `version`（使い方は [README.ja.md](README.ja.md)）
-- 対応言語: Go（`go/ast`）、TypeScript / JavaScript（正規表現ベースの軽量パーサー）
+- 対応言語: Go のみ（`go/ast`）。TypeScript/JavaScript への対応は v0.2.0 で終了した（推測による解析の取りこぼしが、AIにとって危険なため）
 - 要件・設計・ガイドライン: [doc/01_system_overview.md](doc/01_system_overview.md)、[doc/02_architecture.md](doc/02_architecture.md)、[doc/03_guidelines.md](doc/03_guidelines.md)
 
 ## 構成
 ```text
 main.go              エントリーポイント（サブコマンドの振り分け、version）
-internal/cmd/        map / deps / slice、共通フラグ、git 差分、tsconfig 解決
-internal/parser/     Go と TS/JS のパーサー
+internal/cmd/        map / deps / slice、共通フラグ、git 差分
+internal/parser/     Go のパーサー（go/ast）
 internal/filter/     デフォルト除外、.gitignore / .ctxmapignore / --exclude
 doc/                 要件・設計・ガイドライン・他プロジェクト用 CLAUDE.md テンプレート
 skills/ctxmap/       Claude Code のスキル（`make install-skill` で ~/.claude/skills に入る）

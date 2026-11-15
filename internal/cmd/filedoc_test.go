@@ -10,8 +10,9 @@ var docFixture = map[string]string{
 	// doc.go holds only the package comment; it wins over other files
 	"store/doc.go": "// Copyright 2024 Acme.\n\n// Package store keeps things.\n//\n// # Details\n//\n// Long text.\npackage store\n",
 	"store/db.go":  "// Package store is also described here.\npackage store\n\nfunc Get() {}\n",
-	"web/index.ts": "// Web entry point.\nimport { a } from './a'\n\nexport const b = a\n",
-	"web/a.ts":     "// Helpers.\n\nexport const a = 1\n",
+	// no doc.go: the first package comment found describes the directory
+	"web/a.go": "package web\n\nfunc A() {}\n",
+	"web/b.go": "// Package web serves pages.\npackage web\n\nfunc B() {}\n",
 }
 
 func TestMapFileDoc(t *testing.T) {
@@ -22,7 +23,7 @@ func TestMapFileDoc(t *testing.T) {
 	for _, want := range []string{
 		"## store/doc.go [store]\n> Package store keeps things.\n", // doc.go is no longer hidden
 		"## store/db.go [store]\n> Package store is also described here.\nfunc Get() #L4\n",
-		"## web/a.ts\n> Helpers.\nexport const a = 1 #L3\n",
+		"## web/a.go [web]\nfunc A() #L3\n", // no package comment, no "> " line
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("map missing %q:\n%s", want, out)
@@ -52,7 +53,7 @@ func TestSummaryDirDoc(t *testing.T) {
 	out := b.String()
 	for _, want := range []string{
 		"store/ 2 files, 1 symbols: Get\n  > Package store keeps things.\n", // doc.go preferred
-		"web/ 2 files, 2 symbols: a, b\n  > Web entry point.\n",             // index file for TS
+		"web/ 2 files, 2 symbols: A, B\n  > Package web serves pages.\n",    // first package comment
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("summary missing %q:\n%s", want, out)

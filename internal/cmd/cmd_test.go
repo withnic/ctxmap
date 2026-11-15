@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"flag"
 	"io"
 	"os"
@@ -37,12 +36,12 @@ func mustCollect(t *testing.T, root string) *scan {
 }
 
 var fixture = map[string]string{
-	"go.mod":           "module example.com/app\n\ngo 1.22\n",
-	"main.go":          "package main\n\nimport \"example.com/app/store\"\n\nfunc main() { store.New() }\n",
-	"store/db.go":      "package store\n\nimport \"example.com/app/store/kv\"\n\n// DB is a store.\ntype DB struct{}\n\n// New makes a DB.\nfunc New() *DB { return &DB{} }\n\nfunc (d *DB) Get(k string) string { return kv.X + k }\n",
-	"store/kv/kv.go":   "package kv\n\nconst X = \"x\"\n",
-	"web/app.ts":       "import { util } from './lib';\nimport React from 'react';\nexport class App {\n  run(): void { util(); }\n}\n",
-	"web/lib/index.ts": "export function util(): number { return 1 }\n",
+	"go.mod":         "module example.com/app\n\ngo 1.22\n",
+	"main.go":        "package main\n\nimport \"example.com/app/store\"\n\nfunc main() { store.New() }\n",
+	"store/db.go":    "package store\n\nimport \"example.com/app/store/kv\"\n\n// DB is a store.\ntype DB struct{}\n\n// New makes a DB.\nfunc New() *DB { return &DB{} }\n\nfunc (d *DB) Get(k string) string { return kv.X + k }\n",
+	"store/kv/kv.go": "package kv\n\nconst X = \"x\"\n",
+	"web/app.go":     "package web\n\nimport (\n\t\"net/http\"\n\n\t\"example.com/app/web/lib\"\n)\n\nfunc Run(_ http.Handler) { lib.Util() }\n",
+	"web/lib/lib.go": "package lib\n\nfunc Util() int { return 1 }\n",
 }
 
 func TestDepsGraph(t *testing.T) {
@@ -51,7 +50,7 @@ func TestDepsGraph(t *testing.T) {
 
 	var b strings.Builder
 	g.writeAll(&b, g.files, false, 0)
-	for _, want := range []string{"main.go -> store\n", "store/db.go -> store/kv\n", "web/app.ts -> web/lib/index.ts\n", "3/5 files"} {
+	for _, want := range []string{"main.go -> store\n", "store/db.go -> store/kv\n", "web/app.go -> web/lib\n", "3/5 files"} {
 		if !strings.Contains(b.String(), want) {
 			t.Errorf("deps output missing %q:\n%s", want, b.String())
 		}
@@ -115,49 +114,29 @@ func TestCheckDepsFlags(t *testing.T) {
 	}
 }
 
-func TestTSConfigPaths(t *testing.T) {
+// TestDepsExternalImports: standard library and third-party imports are not
+// local dependencies, nor are packages of another module.
+func TestDepsExternalImports(t *testing.T) {
 	root := writeTree(t, map[string]string{
-		"tsconfig.base.json": `{
-			// shared settings
-			"compilerOptions": {
-				"baseUrl": ".",
-				"paths": { "@/*": ["src/*"], "@ui": ["src/ui/index.ts"], },
-			},
-		}`,
-		"tsconfig.json":     `{ "extends": "./tsconfig.base", /* no overrides */ }`,
-		"src/app.ts":        "import { a } from '@/lib/util';\nimport { B } from '@ui';\nimport x from 'react';\nimport y from 'lib/util';\nexport const z = 1;\n",
-		"src/lib/util.ts":   "export const a = 1;\n",
-		"src/ui/index.ts":   "export const B = 1;\n",
-		"src/lib/nested.ts": "export const n = 1;\n",
+		"go.mod":        "module example.com/m\n\ngo 1.22\n",
+		"a/a.go":        "package a\n\nimport (\n\t\"fmt\"\n\n\t\"github.com/other/lib\"\n\t\"example.com/m/b\"\n\t\"example.com/mother/x\"\n)\n\nvar _ = fmt.Sprint\n",
+		"b/b.go":        "package b\n",
+		"nested/go.mod": "module example.com/nested\n\ngo 1.22\n",
+		"nested/n/n.go": "package n\n\nimport \"example.com/m/b\"\n",
 	})
 	g := newDepGraph(mustCollect(t, root))
 	for _, f := range g.files {
-		if f.disp != "src/app.ts" {
-			continue
-		}
-		// '@/lib/util' via paths, '@ui' via an exact alias, 'lib/util' via
-		// baseUrl? no: baseUrl is the root, so 'lib/util' does not exist there.
 		got := strings.Join(g.deps[f], ", ")
-		if want := "src/lib/util.ts, src/ui/index.ts"; got != want {
-			t.Errorf("deps = %q, want %q", got, want)
+		switch f.disp {
+		case "a/a.go":
+			if got != "b" { // not fmt, github.com/..., nor example.com/mother (prefix only)
+				t.Errorf("a/a.go deps = %q, want b", got)
+			}
+		case "nested/n/n.go":
+			if got != "" { // its own module is example.com/nested
+				t.Errorf("nested module must not resolve example.com/m: %q", got)
+			}
 		}
-		return
-	}
-	t.Fatal("src/app.ts not scanned")
-}
-
-func TestStripJSONC(t *testing.T) {
-	in := `{"a": "x // not a comment", /* c */ "b": [1, 2,], // tail
-}`
-	var got struct {
-		A string `json:"a"`
-		B []int  `json:"b"`
-	}
-	if err := json.Unmarshal(stripJSONC([]byte(in)), &got); err != nil {
-		t.Fatalf("not valid JSON after stripping: %v", err)
-	}
-	if got.A != "x // not a comment" || len(got.B) != 2 {
-		t.Errorf("got %+v", got)
 	}
 }
 
@@ -167,7 +146,7 @@ func TestFindSymbol(t *testing.T) {
 		"New":    "New",
 		"DB.Get": "DB.Get",
 		"Get":    "DB.Get",
-		"run":    "App.run",
+		"run":    "Run", // case-insensitive fallback
 		"new":    "New", // case-insensitive fallback
 	} {
 		hits := findSymbol(all, query)
@@ -241,7 +220,7 @@ func TestWriteSummary(t *testing.T) {
 		"# map x --summary (5 files, 7 symbols)\n",
 		". 1 files, 1 symbols\n",
 		"store/ 1 files, 3 symbols: DB, New\n",
-		"web/ 1 files, 1 symbols: App\n",
+		"web/ 1 files, 1 symbols: Run\n",
 	} {
 		if !strings.Contains(b.String(), want) {
 			t.Errorf("summary missing %q:\n%s", want, b.String())

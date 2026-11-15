@@ -2,12 +2,12 @@
 
 English | [日本語](README.ja.md)
 
-A CLI that keeps AI agents from burning tokens by reading whole files over and over while exploring a codebase.
+A CLI that keeps AI agents from burning tokens by reading whole files over and over while exploring a **Go** codebase.
 It prints only the **skeleton of the code (signatures, type definitions, doc-comment summaries)** and its **local dependencies**, as compact Markdown on stdout.
 
-- Languages: Go (exact parsing with `go/ast`), TypeScript / JavaScript (`.ts` `.tsx` `.js` `.jsx`, lightweight parser)
+- Go only, parsed exactly with `go/ast` (TypeScript/JavaScript support was removed in v0.2.0; see [Other languages](#other-languages))
 - No external dependencies (standard library only); a single binary, no CGO
-- On this repository, `map` output is about 20% of the size of the (non-test) source
+- On this repository, `map` output is about 25% of the size of the (non-test) source
 
 ## Installation
 
@@ -28,11 +28,11 @@ Make sure `$(go env GOPATH)/bin` (`%USERPROFILE%\go\bin` on Windows) is on your 
 Prints declarations with function bodies omitted, plus the first sentence of each doc comment.
 Each declaration ends with a `#Lstart-end` line reference (doc comment included), so a reader can fetch exactly that range.
 
-A line starting with `> ` right under a file heading says what the file is for: the Go package comment (so a `doc.go` that holds nothing else now shows up too) or the leading comment of a TS/JS file. License headers and tool directives (`Copyright ...`, `SPDX-License-Identifier`, `eslint-disable`, `@ts-nocheck`, ...) are skipped, and a comment attached directly to the first declaration stays that declaration's doc.
+A line starting with `> ` right under a file heading says what the file is for: the package comment (so a `doc.go` that holds nothing else shows up too). A license header separated from the package clause by a blank line is not part of it.
 
 ```text
 $ ctxmap map internal/parser
-# map internal/parser (4 files)
+# map internal/parser (2 files)
 
 ## internal/parser/go_parser.go [parser]
 // ParseGo parses a Go file with go/parser and returns its skeleton.
@@ -40,34 +40,34 @@ func ParseGo(path string, src []byte) (*FileInfo, error) #L14-88
 func recvName(e ast.Expr) string #L97-111
 
 ## internal/parser/parser.go [parser]
-> Package parser extracts skeletons (signatures, type definitions, doc comments) and imports from Go and TypeScript/JavaScript sources.
-// Symbol is one top-level declaration (or a class member).
-type Symbol struct { #L13-23
+> Package parser extracts skeletons (signatures, type definitions, doc comments) and imports from Go source files.
+// Symbol is one top-level declaration.
+type Symbol struct { #L13-22
 	Kind string
 	Name string
 	...
 }
 ```
 
-For a first look at a large repository, `--summary` prints one line per directory, followed by its description: a Go `doc.go` first, then any package comment; for TS/JS, the leading comment of an `index` file.
+For a first look at a large repository, `--summary` prints one line per directory, followed by the package description (`doc.go` first, then any package comment).
 
 ```text
 $ ctxmap map --summary
-# map . --summary (14 files, 145 symbols)
+# map . --summary (11 files, 103 symbols)
 . 1 files, 3 symbols
   > Command ctxmap prints token-efficient code skeletons and dependency maps for AI agents exploring a codebase.
-internal/cmd/ 8 files, 80 symbols: Deps, Map, Slice
+internal/cmd/ 7 files, 68 symbols: Deps, Map, Slice
   > Package cmd implements the ctxmap subcommands.
-internal/filter/ 1 files, 22 symbols: DefaultIgnoreDirs, DefaultIgnoreFiles, SourceExts, IsTestFile, IsSourceFile, IsIgnoredFile, IgnoreFileName, Options, …
+internal/filter/ 1 files, 21 symbols: DefaultIgnoreDirs, DefaultIgnoreFiles, IsTestFile, IsSourceFile, IsIgnoredFile, IgnoreFileName, Options, Walk
   > Package filter decides which files ctxmap scans: default exclusions, test-file detection, and simplified .gitignore / .ctxmapignore matching.
-internal/parser/ 4 files, 40 symbols: ParseGo, Symbol, FileInfo, ErrUnsupported, ParseFile, Summary, Intro, ParseTS
-  > Package parser extracts skeletons (signatures, type definitions, doc comments) and imports from Go and TypeScript/JavaScript sources.
+internal/parser/ 2 files, 11 symbols: ParseGo, Symbol, FileInfo, ErrUnsupported, ParseFile, Summary, Intro
+  > Package parser extracts skeletons (signatures, type definitions, doc comments) and imports from Go source files.
 ```
 
 | Flag | Description |
 |---|---|
 | `--summary` | One line per directory: file/symbol counts, the main exported names and the package description |
-| `--exported` | Go: show exported symbols only (TS/JS always shows exported declarations only) |
+| `--exported` | Show exported symbols only |
 | `--full-doc` | Print whole doc comments (file/package descriptions: up to the first heading, at most 15 lines) |
 | `--no-doc` | Omit doc comments, including file/package descriptions |
 | `--no-lines` | Omit the `#Lstart-end` line references |
@@ -75,16 +75,16 @@ internal/parser/ 4 files, 40 symbols: ParseGo, Symbol, FileInfo, ErrUnsupported,
 | `--changed` | Only files changed in git (staged, unstaged, untracked) |
 | `--base <ref>` | With `--changed`: also include everything changed since the merge-base with `ref` (e.g. `main`), which is what a PR contains |
 
-- Go `const` / `var` declarations are listed by exported name only, one line per kind (e.g. `const ModeA, ModeB`).
-- TS/JS classes show public member signatures only (`private` and `#private` members are left out).
+- Unexported functions and types are shown too (they are part of the skeleton); `--exported` hides them.
+- `const` / `var` declarations are listed by exported name only, one line per kind (e.g. `const ModeA, ModeB`).
 
 ### `ctxmap deps [path]` — local dependencies
 
-Lists imports within the repository; external packages are excluded. Go dependencies are shown per package directory, TS/JS dependencies per resolved file.
+Lists the imports between packages of the module (resolved through the nearest `go.mod`), one line per file, as package directories. Standard library and third-party imports are left out.
 
 ```text
 $ ctxmap deps
-# deps . (local only; 4/14 files have local deps)
+# deps . (local only; 4/11 files have local deps)
 internal/cmd/common.go -> internal/filter, internal/parser
 internal/cmd/map.go -> internal/parser
 main.go -> internal/cmd
@@ -110,20 +110,14 @@ referenced by (2):
 | `--changed`, `--base <ref>` | Without `--target`: list only changed files (same meaning as in `map`) |
 | `--max-lines N` | Without `--target`: stop the listing after about N lines (default `500`, `0` = unlimited) |
 
-TS/JS import resolution:
-
-- Relative imports: `./foo`, `./foo.js` (when the file is actually `foo.ts`), `./dir` (`dir/index.ts`)
-- Aliases from the nearest `tsconfig.json` / `jsconfig.json`: `compilerOptions.paths` (e.g. `@/*`) and `baseUrl`, including configs pulled in with a relative `extends`. Comments and trailing commas in the config are fine.
-- Anything that does not resolve to a file is treated as an external package.
-
 ### `ctxmap slice <symbol>... [path]` — full definitions
 
-Prints the complete definition of functions, methods, types, classes or members, including body and doc comment, with the file path and line range.
+Prints the complete definition of functions, methods, types, consts or vars, including body and doc comment, with the file path and line range.
 Several symbols can be requested at once, separated by spaces or commas.
 
 ````text
 $ ctxmap slice Summary withLineRef
-## internal/parser/parser.go:52-88 (func Summary)
+## internal/parser/parser.go:47-83 (func Summary)
 ```go
 // Summary returns the first sentence of a doc comment's first paragraph,
 func Summary(doc string) string {
@@ -131,13 +125,13 @@ func Summary(doc string) string {
 }
 ```
 
-## internal/cmd/map.go:212-223 (func withLineRef)
+## internal/cmd/map.go:187-198 (func withLineRef)
 ```go
 ...
 ```
 ````
 
-- Symbols are given as `Name`, `Recv.Method` (Go) or `Class.member` (TS/JS).
+- Symbols are given as `Name` or `Recv.Method`.
 - Without an exact match, the search falls back to a case-insensitive match. Missing symbols are reported on stderr with similar candidates; the ones that were found are still printed, and the exit code is 1 if any symbol was missing.
 - The last argument is the search path when it exists on disk (`ctxmap slice Map cmd`). If a symbol could be mistaken for a path, pass the path with `--path` instead.
 
@@ -162,7 +156,7 @@ All commands share these flags:
 
 | Flag | Description |
 |---|---|
-| `--include-tests` | Include test files (`*_test.go` `*.spec.*` `*.test.*`) |
+| `--include-tests` | Include test files (`*_test.go`) |
 | `--exclude <pattern>` | Extra `.gitignore`-style pattern, relative to the scanned path. Repeatable; `!pattern` re-includes |
 | `--no-gitignore` | Do not apply `.gitignore` (`.ctxmapignore` still applies) |
 
@@ -170,9 +164,9 @@ Excluded by default:
 
 | Kind | Patterns |
 |---|---|
-| Directories | `.git` `node_modules` `vendor` `dist` `build` `.next` `.claude` |
-| Files | `go.sum` `package-lock.json` `yarn.lock` `pnpm-lock.yaml` `*.min.js` `*.pb.go` |
-| Tests | `*_test.go` `*.spec.*` `*.test.*` (included with `--include-tests`) |
+| Directories | `.git` `vendor` `testdata` `node_modules` `.claude` |
+| Files | `*.pb.go` (generated protobuf code) |
+| Tests | `*_test.go` (included with `--include-tests`) |
 
 ### `.ctxmapignore`
 
@@ -181,10 +175,10 @@ Put a `.ctxmapignore` file (same syntax as `.gitignore`) in any directory to hid
 ```gitignore
 # .ctxmapignore
 mocks/
-testdata/
+examples/
 *.gen.go
 # re-include a directory excluded by default
-!build/
+!testdata/
 ```
 
 As in `.gitignore`, a comment must be on its own line; `# ...` after a pattern becomes part of the pattern.
@@ -254,8 +248,8 @@ The lint configuration lives in [.golangci.yml](.golangci.yml): the standard set
 
 ```text
 main.go          entry point and subcommand dispatch
-internal/cmd/    map / deps / slice, shared flags, git changes, tsconfig resolution
-internal/parser/ Go (go/ast) and TS/JS (lightweight) parsers
+internal/cmd/    map / deps / slice, shared flags, git changes
+internal/parser/ Go parser (go/ast)
 internal/filter/ default exclusions, .gitignore / .ctxmapignore / --exclude matching
 doc/             requirements, design, guidelines, CLAUDE.md template (Japanese)
 skills/ctxmap/   Claude Code skill (`make install-skill`)
@@ -265,9 +259,18 @@ Design details (in Japanese): [doc/01_system_overview.md](doc/01_system_overview
 
 ## Known limitations
 
-- TS/JS parsing is not a full AST parse. Text inside JSX containing characters such as `'` can occasionally confuse the parser for that line.
-- tsconfig `extends` is followed only for relative paths; configs from packages (e.g. `@tsconfig/node20`) are not read.
+- Go only. Build constraints (`//go:build`) are not evaluated: files for every platform are listed.
 - `--changed` needs `git` on `PATH` and a repository with at least one commit.
+
+## Other languages
+
+ctxmap supported TypeScript/JavaScript with a lightweight parser up to v0.1.0. It was removed in v0.2.0: guessing at TS syntax silently missed declarations (separate `export { ... }`, barrel files, ...), which is worse for an agent than not using the tool. For TypeScript, the compiler gives an exact skeleton instead:
+
+```sh
+npx tsc --declaration --emitDeclarationOnly --outDir /tmp/skeleton
+```
+
+v0.1.0 is still installable (`go install github.com/withnic/ctxmap@v0.1.0`) if you need its TS/JS support.
 
 ## Versioning
 

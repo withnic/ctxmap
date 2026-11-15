@@ -20,7 +20,7 @@ func ParseGo(path string, src []byte) (*FileInfo, error) {
 	}
 	// f.Doc is the comment directly above the package clause, so a license
 	// header separated by a blank line is not picked up.
-	fi := &FileInfo{Path: path, Lang: "go", Package: f.Name.Name, FileDoc: strings.TrimSpace(f.Doc.Text())}
+	fi := &FileInfo{Path: path, Package: f.Name.Name, FileDoc: strings.TrimSpace(f.Doc.Text())}
 	for _, imp := range f.Imports {
 		if p, err := strconv.Unquote(imp.Path.Value); err == nil {
 			fi.Imports = append(fi.Imports, p)

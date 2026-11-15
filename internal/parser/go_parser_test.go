@@ -61,3 +61,31 @@ func TestParseGo(t *testing.T) {
 		t.Error("modeB should be unexported")
 	}
 }
+
+func TestGoFileDoc(t *testing.T) {
+	src := "// Copyright 2024 Acme. All rights reserved.\n\n// Package demo does demo things.\n//\n// # Usage\n//\n// More text.\npackage demo\n"
+	fi, err := ParseGo("doc.go", []byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "Package demo does demo things.\n\n# Usage\n\nMore text."; fi.FileDoc != want {
+		t.Errorf("FileDoc = %q, want %q (license header must not be included)", fi.FileDoc, want)
+	}
+	if Intro(fi.FileDoc) != "Package demo does demo things." {
+		t.Errorf("Intro should stop before the first heading: %q", Intro(fi.FileDoc))
+	}
+	noDoc, _ := ParseGo("a.go", []byte("// Copyright 2024 Acme.\n\npackage demo\n"))
+	if noDoc.FileDoc != "" {
+		t.Errorf("license header is not a package doc: %q", noDoc.FileDoc)
+	}
+}
+
+func TestIntroCap(t *testing.T) {
+	long := ""
+	for i := 0; i < 40; i++ {
+		long += "line\n"
+	}
+	if got := Intro(long); len(got) != len("line")*maxIntroLines+maxIntroLines-1 {
+		t.Errorf("Intro should keep at most %d lines, got %q", maxIntroLines, got)
+	}
+}

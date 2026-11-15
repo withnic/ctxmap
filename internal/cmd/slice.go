@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/withnic/ctxmap/internal/parser"
 )
 
-// hit is a symbol candidate with its qualified name (Recv.Method, Class.member).
+// hit is a symbol candidate with its qualified name (Name or Recv.Method).
 type hit struct {
 	f    *source
 	sym  parser.Symbol
@@ -18,9 +17,9 @@ type hit struct {
 }
 
 // Slice implements `ctxmap slice <symbol>... [path]`: print the full
-// definition (body included) of functions, methods, types, classes or members.
+// definition (body included) of functions, methods, types, consts or vars.
 func Slice(args []string) int {
-	fs := newFlagSet("slice", "slice <symbol>[,<symbol>...] [<symbol>...] [path] [flags]\n  symbol: Name | Recv.Method | Class.member")
+	fs := newFlagSet("slice", "slice <symbol>[,<symbol>...] [<symbol>...] [path] [flags]\n  symbol: Name | Recv.Method")
 	sf := addScanFlags(fs)
 	pathFlag := fs.String("path", "", "file or directory to search (default \".\"); use it when a symbol could be mistaken for a path")
 	pos, err := parseArgs(fs, args)
@@ -62,9 +61,9 @@ func Slice(args []string) int {
 			if i > 0 {
 				fmt.Fprintln(w)
 			}
-			fmt.Fprintf(w, "## %s:%d-%d (%s %s)\n```%s\n%s\n```\n",
+			fmt.Fprintf(w, "## %s:%d-%d (%s %s)\n```go\n%s\n```\n",
 				h.f.disp, h.sym.Start, h.sym.End, h.sym.Kind, h.name,
-				lang(h.f.abs), lines(h.f.src, h.sym.Start, h.sym.End))
+				lines(h.f.src, h.sym.Start, h.sym.End))
 		}
 		return exitOK
 	})
@@ -102,9 +101,6 @@ func candidates(files []*source) []hit {
 	for _, f := range files {
 		for _, s := range f.info.Symbols {
 			all = append(all, hit{f, s, s.Name})
-			for _, m := range s.Members {
-				all = append(all, hit{f, m, s.Name + "." + m.Name})
-			}
 		}
 	}
 	return all
@@ -144,20 +140,6 @@ func reportMissing(all []hit, query, root string, includeTests bool) {
 	if !includeTests {
 		fmt.Fprintln(os.Stderr, "hint: add --include-tests to search test files")
 	}
-}
-
-func lang(path string) string {
-	switch filepath.Ext(path) {
-	case ".go":
-		return "go"
-	case ".ts":
-		return "ts"
-	case ".tsx":
-		return "tsx"
-	case ".jsx":
-		return "jsx"
-	}
-	return "js"
 }
 
 // lines returns the 1-based inclusive line range [from, to] of src.

@@ -26,7 +26,7 @@ func Map(args []string) int {
 	cf := addChangeFlags(fs)
 	var o mapOpts
 	summary := fs.Bool("summary", false, "one line per directory (file/symbol counts, main exported names) instead of signatures")
-	fs.BoolVar(&o.exportedOnly, "exported", false, "Go: show exported symbols only (TS/JS always shows exports only)")
+	fs.BoolVar(&o.exportedOnly, "exported", false, "show exported symbols only")
 	fs.BoolVar(&o.fullDoc, "full-doc", false, "print whole doc comments instead of their first sentence")
 	fs.BoolVar(&o.noDoc, "no-doc", false, "omit doc comments")
 	fs.BoolVar(&o.noLines, "no-lines", false, "omit the #Lstart-end line references")
@@ -80,27 +80,20 @@ func fileDocText(doc string, o mapOpts) string {
 	return parser.Summary(doc)
 }
 
-// dirDoc picks the description of a directory for --summary: a Go doc.go
-// first, then any Go package comment, then the leading comment of a TS/JS
-// index file.
+// dirDoc picks the description of a directory (package) for --summary: the
+// package comment in doc.go if there is one, otherwise the first package
+// comment found.
 func dirDoc(files []*source) string {
-	best, rank := "", 4
+	best := ""
 	for _, f := range files {
 		if f.info.FileDoc == "" {
 			continue
 		}
-		r := 4
-		base := path.Base(f.disp)
-		switch {
-		case f.info.Lang == "go" && base == "doc.go":
-			r = 1
-		case f.info.Lang == "go":
-			r = 2
-		case strings.HasPrefix(base, "index."):
-			r = 3
+		if path.Base(f.disp) == "doc.go" {
+			return f.info.FileDoc
 		}
-		if r < rank {
-			best, rank = f.info.FileDoc, r
+		if best == "" {
+			best = f.info.FileDoc
 		}
 	}
 	return best
@@ -116,19 +109,16 @@ func writeMap(w io.Writer, label string, files []*source, o mapOpts, maxLines in
 		if body == "" {
 			continue
 		}
-		head := "## " + f.disp
-		if f.info.Lang == "go" {
-			head += " [" + f.info.Package + "]"
-		}
-		budget.write(w, "\n"+head+"\n"+body)
+		budget.write(w, "\n## "+f.disp+" ["+f.info.Package+"]\n"+body)
 	}
 	budget.truncated(w, "files", "narrow with 'ctxmap map --summary' or a subdirectory path")
 }
 
-// visible reports whether map shows s (Go consts/vars are listed by name).
-func visible(fi *parser.FileInfo, s parser.Symbol, o mapOpts) bool {
-	if fi.Lang == "go" && !o.exportedOnly && s.Kind != "const" && s.Kind != "var" {
-		return true // Go: unexported funcs/types are part of the skeleton
+// visible reports whether map shows s: every func/method/type unless
+// --exported, but only exported consts/vars (listed by name).
+func visible(s parser.Symbol, o mapOpts) bool {
+	if !o.exportedOnly && s.Kind != "const" && s.Kind != "var" {
+		return true // unexported funcs/types are part of the skeleton
 	}
 	return s.Exported
 }
@@ -160,9 +150,8 @@ func renderFile(fi *parser.FileInfo, o mapOpts) string {
 		b.WriteString(indent + strings.ReplaceAll(sig, "\n", "\n"+indent) + "\n")
 	}
 
-	// the file's role (Go package comment, e.g. doc.go; TS/JS leading
-	// comment) right under the heading, marked "> " to tell it apart from
-	// declaration docs
+	// the file's role (its package comment, e.g. from doc.go) right under
+	// the heading, marked "> " to tell it apart from declaration docs
 	if doc := fileDocText(fi.FileDoc, o); doc != "" {
 		for _, l := range strings.Split(doc, "\n") {
 			b.WriteString(strings.TrimRight("> "+l, " ") + "\n")
@@ -171,11 +160,11 @@ func renderFile(fi *parser.FileInfo, o mapOpts) string {
 
 	var consts, vars []string
 	for _, s := range fi.Symbols {
-		if !visible(fi, s, o) {
+		if !visible(s, o) {
 			continue
 		}
-		if fi.Lang == "go" && (s.Kind == "const" || s.Kind == "var") {
-			// Go consts/vars are listed by name only, one line per kind
+		if s.Kind == "const" || s.Kind == "var" {
+			// consts/vars are listed by name only, one line per kind
 			if s.Kind == "const" {
 				consts = append(consts, s.Name)
 			} else {
@@ -184,21 +173,7 @@ func renderFile(fi *parser.FileInfo, o mapOpts) string {
 			continue
 		}
 		writeDoc("", s.Doc)
-		if s.Kind != "class" {
-			writeSig("", s)
-			continue
-		}
-		head := s
-		head.Signature += " {"
-		writeSig("", head)
-		for _, m := range s.Members {
-			if !m.Exported {
-				continue
-			}
-			writeDoc("  ", m.Doc)
-			writeSig("  ", m)
-		}
-		b.WriteString("}\n")
+		writeSig("", s)
 	}
 	if len(consts) > 0 {
 		b.WriteString("const " + strings.Join(consts, ", ") + "\n")
@@ -247,7 +222,7 @@ func writeSummary(w io.Writer, label string, files []*source, o mapOpts, maxLine
 		st.files++
 		st.members = append(st.members, f)
 		for _, s := range f.info.Symbols {
-			if !visible(f.info, s, o) {
+			if !visible(s, o) {
 				continue
 			}
 			st.syms++

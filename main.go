@@ -24,9 +24,9 @@ usage:
 commands:
   map    signatures, type definitions and doc comments (bodies omitted),
          each with a #Lstart-end line reference; --summary: one line per dir
-  deps   local import graph (Go packages, TS/JS files incl. tsconfig paths);
+  deps   local import graph between the packages of the module;
          --target narrows to one file/package, --depth follows it further
-  slice  full source of symbols (Name, Recv.Method, Class.member)
+  slice  full source of symbols (Name or Recv.Method)
 
 file selection (all commands):
   --include-tests     include *_test.go, *.spec.ts, *.test.ts, ...

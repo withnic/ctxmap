@@ -1,5 +1,5 @@
 // Package parser extracts skeletons (signatures, type definitions, doc
-// comments) and imports from Go and TypeScript/JavaScript sources.
+// comments) and imports from Go source files.
 package parser
 
 import (
@@ -10,43 +10,38 @@ import (
 	"unicode/utf8"
 )
 
-// Symbol is one top-level declaration (or a class member).
+// Symbol is one top-level declaration.
 type Symbol struct {
-	Kind      string // func, method, type, const, var, class, interface, enum, namespace, default, member
+	Kind      string // func, method, type, const, var
 	Name      string // methods: "Recv.Name"
 	Signature string // declaration without body
 	Doc       string // doc comment text (comment markers stripped)
 	Exported  bool
 	Start     int // first line, including the doc comment (1-based)
 	End       int // last line (1-based)
-	Members   []Symbol
 }
 
 // FileInfo is the parse result of a single file.
 type FileInfo struct {
 	Path    string
-	Lang    string // "go" or "ts"
 	Package string // Go package name
 	Imports []string
 	Symbols []Symbol
-	// FileDoc describes the file's role: the package comment in Go, the
-	// leading description comment in TS/JS (license headers and tool
-	// directives skipped). Empty when there is none.
+	// FileDoc describes the file's role: its package comment (a license
+	// header separated by a blank line is not part of it). Empty when there
+	// is none.
 	FileDoc string
 }
 
 // ErrUnsupported is returned by ParseFile for unknown file extensions.
 var ErrUnsupported = errors.New("unsupported file type")
 
-// ParseFile dispatches on the file extension.
+// ParseFile parses a Go source file; other extensions are rejected.
 func ParseFile(path string, src []byte) (*FileInfo, error) {
-	switch filepath.Ext(path) {
-	case ".go":
-		return ParseGo(path, src)
-	case ".ts", ".tsx", ".js", ".jsx":
-		return ParseTS(path, src)
+	if filepath.Ext(path) != ".go" {
+		return nil, fmt.Errorf("%s: %w", path, ErrUnsupported)
 	}
-	return nil, fmt.Errorf("%s: %w", path, ErrUnsupported)
+	return ParseGo(path, src)
 }
 
 // Summary returns the first sentence of a doc comment's first paragraph,

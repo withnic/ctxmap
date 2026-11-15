@@ -11,15 +11,12 @@ import (
 	"strings"
 )
 
-var tsResolveExts = []string{".ts", ".tsx", ".js", ".jsx", ".d.ts"}
-
 // depGraph holds the local dependencies of every scanned file.
 type depGraph struct {
 	*scan
-	deps      map[*source][]string // display keys: Go package dir or TS file
-	byKey     map[string][]*source // display key -> files it stands for
-	mods      map[string]*goMod    // dir -> nearest go.mod (nil if none)
-	tsconfigs map[string]*tsConfig // dir -> nearest tsconfig (nil if none)
+	deps  map[*source][]string // package directories each file imports
+	byKey map[string][]*source // package directory -> its files
+	mods  map[string]*goMod    // dir -> nearest go.mod (nil if none)
 }
 
 type goMod struct {
@@ -97,7 +94,7 @@ func checkDepsFlags(fs *flag.FlagSet, target string, depth int, changed bool) er
 
 func newDepGraph(s *scan) *depGraph {
 	g := &depGraph{scan: s, deps: map[*source][]string{}, byKey: map[string][]*source{},
-		mods: map[string]*goMod{}, tsconfigs: map[string]*tsConfig{}}
+		mods: map[string]*goMod{}}
 	for _, f := range s.files {
 		g.deps[f] = g.localDeps(f)
 		k := g.nodeKey(f)
@@ -240,75 +237,29 @@ func uniq(s []string) []string {
 	return out
 }
 
-// nodeKey is how a file appears as a dependency of other files.
+// nodeKey is how a file appears as a dependency of other files: its package
+// directory.
 func (g *depGraph) nodeKey(f *source) string {
-	if f.info.Lang == "go" {
-		return g.rel(filepath.Dir(f.abs))
-	}
-	return f.disp
+	return g.rel(filepath.Dir(f.abs))
 }
 
+// localDeps lists the package directories of the imports that belong to the
+// file's own module (nearest go.mod); standard library and third-party
+// imports are left out.
 func (g *depGraph) localDeps(f *source) []string {
 	var out []string
-	dir := filepath.Dir(f.abs)
+	mod := g.findMod(filepath.Dir(f.abs))
+	if mod == nil {
+		return nil
+	}
 	for _, imp := range f.info.Imports {
-		if f.info.Lang == "go" {
-			mod := g.findMod(dir)
-			if mod == nil || (imp != mod.path && !strings.HasPrefix(imp, mod.path+"/")) {
-				continue
-			}
-			rel := strings.TrimPrefix(strings.TrimPrefix(imp, mod.path), "/")
-			out = append(out, g.rel(filepath.Join(mod.root, filepath.FromSlash(rel))))
+		if imp != mod.path && !strings.HasPrefix(imp, mod.path+"/") {
 			continue
 		}
-		if isRelativeImport(imp) {
-			p := filepath.Join(dir, filepath.FromSlash(imp))
-			if abs, ok := resolveFile(p); ok {
-				out = append(out, g.rel(abs))
-			} else {
-				out = append(out, g.rel(p)+" (unresolved)")
-			}
-			continue
-		}
-		// tsconfig/jsconfig "paths" aliases and baseUrl; anything that does
-		// not resolve to a file is a package import.
-		if c := g.tsConfigFor(dir); c != nil {
-			for _, cand := range c.candidates(imp) {
-				if abs, ok := resolveFile(cand); ok {
-					out = append(out, g.rel(abs))
-					break
-				}
-			}
-		}
+		rel := strings.TrimPrefix(strings.TrimPrefix(imp, mod.path), "/")
+		out = append(out, g.rel(filepath.Join(mod.root, filepath.FromSlash(rel))))
 	}
 	return uniq(out)
-}
-
-func isRelativeImport(imp string) bool {
-	return imp == "." || imp == ".." || strings.HasPrefix(imp, "./") || strings.HasPrefix(imp, "../")
-}
-
-// resolveFile maps an import path (without or with extension) to an existing
-// file, trying TS/JS extensions and index files.
-func resolveFile(p string) (string, bool) {
-	if fileExists(p) {
-		return p, true
-	}
-	// ESM-style "./foo.js" that actually points at foo.ts
-	base := strings.TrimSuffix(p, filepath.Ext(p))
-	for _, cand := range []string{p, base} {
-		for _, ext := range tsResolveExts {
-			if fileExists(cand + ext) {
-				return cand + ext, true
-			}
-		}
-	}
-	for _, ext := range tsResolveExts {
-		if q := filepath.Join(p, "index"+ext); fileExists(q) {
-			return q, true
-		}
-	}
-	return "", false
 }
 
 // findMod returns the nearest go.mod at or above dir, cached per directory.
@@ -345,7 +296,7 @@ func (g *depGraph) resolveTarget(t string) []*source {
 	for _, f := range g.files {
 		noExt := strings.TrimSuffix(f.disp, filepath.Ext(f.disp))
 		dir := filepath.ToSlash(filepath.Dir(f.disp))
-		goPkg := f.info.Lang == "go" && (f.info.Package == norm || dir == norm || strings.HasSuffix(dir, "/"+norm))
+		goPkg := f.info.Package == norm || dir == norm || strings.HasSuffix(dir, "/"+norm)
 		if goPkg || f.disp == norm || noExt == norm || filepath.Base(noExt) == norm || strings.HasSuffix(noExt, "/"+norm) {
 			out = append(out, f)
 		}
@@ -376,9 +327,6 @@ func (g *depGraph) targetByPath(t string) []*source {
 func (g *depGraph) targetByImportPath(ip string) []*source {
 	var out []*source
 	for _, f := range g.files {
-		if f.info.Lang != "go" {
-			continue
-		}
 		dir := filepath.Dir(f.abs)
 		mod := g.findMod(dir)
 		if mod == nil {

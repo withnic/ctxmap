@@ -6,6 +6,23 @@ and this project follows [Semantic Versioning](https://semver.org/) (see "Versio
 
 ## [Unreleased]
 
+ctxmap is now a Go-only tool.
+
+### Removed
+- TypeScript/JavaScript support: the lightweight TS/JS parser, `tsconfig.json` /
+  `jsconfig.json` path resolution, TS/JS file descriptions and `Class.member`
+  symbols. Guessing at TS syntax silently missed declarations (for example a
+  separate `export { ... }` or barrel files), which misleads agents. For
+  TypeScript, `tsc --declaration --emitDeclarationOnly` gives an exact skeleton;
+  v0.1.0 remains installable for the old behavior.
+
+### Changed
+- Default exclusions are now `.git`, `vendor`, `testdata`, `node_modules` and
+  `.claude` directories and `*.pb.go` files. `dist`, `build` and `.next` (JS build
+  output) are no longer excluded, since `build` or `dist` can be ordinary Go
+  packages (e.g. `cmd/dist` in the Go source tree).
+- `deps` resolves imports against the nearest `go.mod` only.
+
 ## [0.1.0] - 2026-11-16
 
 First public release.

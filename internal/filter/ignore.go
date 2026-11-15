@@ -12,30 +12,25 @@ import (
 	"strings"
 )
 
-// DefaultIgnoreDirs are directory names that are never descended into.
+// DefaultIgnoreDirs are directory names that are never descended into:
+// VCS metadata, vendored modules, testdata (ignored by the go tool too),
+// a frontend's node_modules and Claude Code's own directory.
 var DefaultIgnoreDirs = map[string]bool{
-	".git": true, "node_modules": true, "vendor": true, "dist": true,
-	"build": true, ".next": true, ".claude": true,
+	".git": true, "vendor": true, "testdata": true, "node_modules": true, ".claude": true,
 }
 
-// DefaultIgnoreFiles are file name patterns that are never scanned.
-var DefaultIgnoreFiles = []string{
-	"go.sum", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "*.min.js", "*.pb.go",
-}
+// DefaultIgnoreFiles are file name patterns that are never scanned
+// (generated protobuf code).
+var DefaultIgnoreFiles = []string{"*.pb.go"}
 
-// SourceExts are the extensions ctxmap understands.
-var SourceExts = map[string]bool{".go": true, ".ts": true, ".tsx": true, ".js": true, ".jsx": true}
-
-var tsTestRe = regexp.MustCompile(`\.(spec|test)\.(ts|tsx|js|jsx)$`)
-
-// IsTestFile reports whether name is a Go or TS/JS test file.
+// IsTestFile reports whether name is a Go test file.
 func IsTestFile(name string) bool {
-	return strings.HasSuffix(name, "_test.go") || tsTestRe.MatchString(name)
+	return strings.HasSuffix(name, "_test.go")
 }
 
-// IsSourceFile reports whether name has a supported extension.
+// IsSourceFile reports whether name is a Go source file.
 func IsSourceFile(name string) bool {
-	return SourceExts[filepath.Ext(name)]
+	return filepath.Ext(name) == ".go"
 }
 
 // IsIgnoredFile reports whether name matches DefaultIgnoreFiles.

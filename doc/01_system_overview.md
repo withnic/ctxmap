@@ -6,7 +6,7 @@ AIがコードベースを探索する際、ファイル全体を何度も Read 
 モジュール名: github.com/withnic/ctxmap
 依存関係: 外部依存は最小限（できれば標準ライブラリのみ）。CGOなしでクロスコンパイル・go install が通ること。
 Goパーサー: 標準ライブラリの go/ast, go/parser, go/token を使用。
-TS/JSパーサー: .ts, .tsx, .js, .jsx に対して、正規表現または軽量パーサーで export された関数・クラス・interface・type・import文を抽出。
+対応言語: Go のみ。TS/JS 対応（正規表現ベースの軽量パーサー）は v0.1.0 まで提供し、v0.2.0 で削除した（推測による解析の取りこぼしが、AIにとって危険なため）。
 サブコマンド仕様
 1. ctxmap map [path]
 指定パス（デフォルト .）を再帰的に走査。
@@ -15,7 +15,7 @@ TS/JSパーサー: .ts, .tsx, .js, .jsx に対して、正規表現または軽�
 関数・メソッドのシグネチャ（本体 { ... } は省略）
 宣言直上のDocコメント
 出力形式: トークン効率の良いコンパクトなMarkdown形式（JSON不可）。
-オプション: --include-tests フラグがない限り、テストファイル（*_test.go, *.spec.ts, *.test.ts）は除外。
+オプション: --include-tests フラグがない限り、テストファイル（*_test.go）は除外。
 2. ctxmap deps [path]
 指定パスのファイルが import しているローカルモジュール／パッケージの依存関係を抽出。
 出力形式: コンパクトなリスト形式。

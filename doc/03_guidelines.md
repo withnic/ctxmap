@@ -2,14 +2,14 @@
 共通フィルタリング仕様（重要）
 以下のディレクトリおよびファイルはデフォルトで走査対象から除外すること。
 除外ディレクトリ
-.git, node_modules, vendor, dist, build, .next, .claude
+.git, vendor, testdata, node_modules, .claude
+（v0.2.0 で Go 専用にしたため、JS のビルド出力用だった dist, build, .next は外した。Go では build や dist が通常のパッケージ名であることがある）
 除外ファイルパターン
-go.sum, package-lock.json, yarn.lock, pnpm-lock.yaml, *.min.js, *.pb.go
+*.pb.go
 テストファイルの除外
 map サブコマンドではデフォルトでテストファイルを除外。
 
-Go: *_test.go
-TS/JS: *.spec.ts, *.test.ts, *.spec.js, *.test.js ※ --include-tests フラグ付与時のみ解析対象に含めること。
+Go: *_test.go ※ --include-tests フラグ付与時のみ解析対象に含めること。
 .gitignore の尊重
 ディレクトリ直下に .gitignore が存在する場合、その内容を読み取って可能な範囲で除外ルールに追加すること（パスベースの簡易マッチングで構いません）。
 出力フォーマットの指針
