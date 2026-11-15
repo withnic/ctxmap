@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go run . map *)",
+      "Bash(go run . deps *)",
+      "Bash(go run . slice *)",
+      "Bash(ctxmap map *)",
+      "Bash(ctxmap deps *)",
+      "Bash(ctxmap slice *)",
+      "Bash(ctxmap version)",
+      "PowerShell(go run . map *)",
+      "PowerShell(go run . deps *)",
+      "PowerShell(go run . slice *)",
+      "PowerShell(ctxmap map *)",
+      "PowerShell(ctxmap deps *)",
+      "PowerShell(ctxmap slice *)",
+      "PowerShell(ctxmap version)"
+    ]
+  }
+}

@@ -1,0 +1,46 @@
+# golangci-lint v2 configuration. Run via `make lint` / `make fmt`.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # errcheck, govet, ineffassign, staticcheck, unused
+  default: standard
+  enable:
+    - errorlint   # correct error wrapping / comparison (errors.Is/As)
+    - gocritic    # common style and performance issues
+    - misspell
+    - nolintlint  # keep //nolint directives honest
+    - revive      # golint successor: naming, doc comments, etc.
+    - unconvert
+    - unparam
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # readability over struct packing for this tool
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: var-naming
+        - name: indent-error-flow
+        - name: error-strings
+        - name: receiver-naming
+        - name: unused-parameter
+  exclusions:
+    presets:
+      - std-error-handling # unchecked fmt.Fprint* / Close etc.
+    rules:
+      - path: _test\.go
+        linters: [errcheck, unparam]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/withnic/ctxmap

@@ -1,0 +1,21 @@
+# Keeps GitHub Actions (pinned to commit SHAs in .github/workflows) and Go
+# modules up to date. ctxmap has no Go module dependencies today; the gomod
+# entry covers any that are added later.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: deps

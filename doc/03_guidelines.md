@@ -1,0 +1,25 @@
+03. ガイドライン (Guidelines)
+共通フィルタリング仕様（重要）
+以下のディレクトリおよびファイルはデフォルトで走査対象から除外すること。
+除外ディレクトリ
+.git, node_modules, vendor, dist, build, .next, .claude
+除外ファイルパターン
+go.sum, package-lock.json, yarn.lock, pnpm-lock.yaml, *.min.js, *.pb.go
+テストファイルの除外
+map サブコマンドではデフォルトでテストファイルを除外。
+
+Go: *_test.go
+TS/JS: *.spec.ts, *.test.ts, *.spec.js, *.test.js ※ --include-tests フラグ付与時のみ解析対象に含めること。
+.gitignore の尊重
+ディレクトリ直下に .gitignore が存在する場合、その内容を読み取って可能な範囲で除外ルールに追加すること（パスベースの簡易マッチングで構いません）。
+出力フォーマットの指針
+トークン効率最優先: JSONのような冗長な構造化フォーマットは避け、インデントと箇条書きを用いたプレーンテキスト・Markdownを利用。
+シグネチャの整形:
+
+// File: src/server.go
+// Handler ...
+func Handler(w http.ResponseWriter, r *http.Request) error
+
+のように、中身のない宣言だけをシンプルに提示する。
+エラーハンドリング
+パースエラーが発生したファイルは処理を停止せず、エラーメッセージを標準エラー出力（または警告として標準出力）に書き出して次のファイルの処理に進むこと。
